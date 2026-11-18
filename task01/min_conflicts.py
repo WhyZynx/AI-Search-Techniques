@@ -2,14 +2,12 @@ import random
 import time
 from dataclasses import dataclass
 
-
 @dataclass
 class MinConflictsResult:
     solution: list
     steps: int
     elapsed_time: float
     success: bool
-
 
 class MinConflictsSolver:
     def __init__(self, n, heuristic="random", max_steps=10000, seed=None):

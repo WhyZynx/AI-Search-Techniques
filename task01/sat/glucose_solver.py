@@ -8,23 +8,20 @@ from logic.propositional_logic import PropositionalLogic
 Clause = List[int]
 Position = Tuple[int, int]
 
-
 class GlucoseSolver:
     def __init__(self, n: int):
-        # Khởi tạo Solver Glucose3 được tạo mới mỗi lần solve()
+
         self.n = n
         self.logic = PropositionalLogic(n)
         self._solver: Optional[Glucose3] = None
         self._model: Optional[List[int]] = None
         self._is_sat: Optional[bool] = None
-        self.load_time: float = 0.0     # thời gian nạp clauses vào solver
-        self.solve_time: float = 0.0    # thời gian Glucose3 giải (không gồm tạo CNF)
+        self.load_time: float = 0.0
+        self.solve_time: float = 0.0
 
-
-    #CNF trả về True nếu là SAT, trả về False nếu là UNSAT
     def solve(self, clauses: List[Clause]) -> bool:
-        # Mỗi lần gọi: xóa solver cũ và kết quả cũ -> tạo glucose3 mới
-        self.close()             # xóa solver cũ của lần chạy trướd
+
+        self.close()
         self._model = None
         self._is_sat = None
 
@@ -36,19 +33,15 @@ class GlucoseSolver:
         self._is_sat = self._solver.solve()
         self.solve_time = time.perf_counter() - t1
 
-        # Chỉ lấy model sau khi kết quả là SAT
         if self._is_sat:
             self._model = self._solver.get_model()
         return self._is_sat
 
-
     def get_solution(self) -> Optional[List[int]]:
         return list(self._model) if self._model is not None else None
 
-
-    # Decode model -> tọa độ
     def decode_solution(self) -> Optional[List[Position]]:
-        # i = (ID - 1) // N, i = (ID - 1) % N
+
         if self._model is None:
             return None
         positions = [
@@ -57,7 +50,6 @@ class GlucoseSolver:
             if 0 < lit <= self.n * self.n
         ]
         return sorted(positions)
-
 
     def validate_solution(self, positions: Optional[List[Position]] = None) -> bool:
 
@@ -72,19 +64,18 @@ class GlucoseSolver:
         if any(not (0 <= i < n and 0 <= j < n) for i, j in positions):
             return False
 
-        if len({i for i, _ in positions}) != n:      # mỗi hàng một quân
+        if len({i for i, _ in positions}) != n:
             return False
-        if len({j for _, j in positions}) != n:      # mỗi cột một quân
+        if len({j for _, j in positions}) != n:
             return False
 
-        for a in range(n):                           # đường chéo
+        for a in range(n):
             for b in range(a + 1, n):
                 (i, j), (k, l) = positions[a], positions[b]
                 if abs(i - k) == abs(j - l):
                     return False
         return True
 
-    # Giải phóng solver
     def close(self) -> None:
         if self._solver is not None:
             self._solver.delete()

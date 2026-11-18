@@ -18,7 +18,6 @@ class KakuroConstraint:
         maximum = sum(available[-remaining_count:]) if remaining_count else 0
         return minimum <= remaining_total <= maximum
 
-
 class KakuroModel:
     def __init__(self, grid):
         self.grid = grid

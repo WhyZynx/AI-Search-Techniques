@@ -6,9 +6,8 @@ from sat.glucose_solver import GlucoseSolver
 from experiments.sat_experiment import SATExperiment
 
 DEFAULT_CSV = "sat_results.csv"
-DEFAULT_N_VALUES = list(range(4, 11))   # N = 4..10
+DEFAULT_N_VALUES = list(range(4, 11))
 DEFAULT_REPEATS = 5
-
 
 def ask_int(prompt: str, min_value: int = 1, default: Optional[int] = None) -> int:
     while True:
@@ -22,7 +21,6 @@ def ask_int(prompt: str, min_value: int = 1, default: Optional[int] = None) -> i
             print(f" Please enter an integer greater than or equal to {min_value}.")
         except ValueError:
             print(" Invalid value. Please enter an integer.")
-
 
 def parse_n_list(text: str) -> List[int]:
     values = set()
@@ -44,21 +42,18 @@ def parse_n_list(text: str) -> List[int]:
 
     return result
 
-
 def print_board(n: int, positions: List[tuple]) -> None:
     queens = set(positions)
     for i in range(n):
         print("  " + " ".join("Q" if (i, j) in queens else "." for j in range(n)))
 
-
-# Mode 1
 def mode_solve() -> None:
-    n = ask_int("Enter N (board size): ")  # 1. Nhập N
+    n = ask_int("Enter N (board size): ")
 
     if n > 30:
         print(f" Note: N = {n} is quite large. The number of clauses increases rapidly, so solving may take longer.")
 
-    generator = CNFGenerator(n)  # 2. Tạo CNF
+    generator = CNFGenerator(n)
     t0 = time.perf_counter()
     clauses = generator.generate_all_constraints()
     generation_time = time.perf_counter() - t0
@@ -66,13 +61,13 @@ def mode_solve() -> None:
     print(f"\nCNF generated: {n * n} variables, {generator.get_clause_count()} clauses "
           f"({generation_time * 1000:.3f} ms)")
 
-    with GlucoseSolver(n) as solver:  # 3. Gọi Glucose3
+    with GlucoseSolver(n) as solver:
         is_sat = solver.solve(clauses)
 
         print(f"Glucose3 result: {'SAT' if is_sat else 'UNSAT'} "
               f"({solver.solve_time * 1000:.3f} ms)")
 
-        if not is_sat:  # 4. Hiển thị kết quả
+        if not is_sat:
             print(f"\nNo valid arrangement of {n} queens satisfies all constraints.")
             return
 
@@ -84,11 +79,9 @@ def mode_solve() -> None:
         print("\nChessboard:")
         print_board(n, positions)
 
-        is_valid = solver.validate_solution(positions)  # 5. Kiểm tra hợp lệ
+        is_valid = solver.validate_solution(positions)
         print(f"\nSolution validation: {'VALID' if is_valid else 'INVALID'}")
 
-
-# Mode 2
 def mode_experiments() -> None:
     default_text = "4-10"
 
@@ -96,7 +89,7 @@ def mode_experiments() -> None:
         f"Enter N values (e.g., 4-10 or 4,6,8) [default: {default_text}]: "
     ).strip()
 
-    try:  # 1. Chọn danh sách N
+    try:
         n_values = parse_n_list(raw or default_text)
     except ValueError as e:
         print(f" Invalid N list: {e}")
@@ -114,9 +107,9 @@ def mode_experiments() -> None:
     print(f"\nRunning benchmark: N = {n_values}, {repeats} runs for each N\n")
 
     experiment = SATExperiment(n_values=n_values, repeats=repeats)
-    experiment.run_multiple_tests()  # 2. Chạy benchmark
+    experiment.run_multiple_tests()
 
-    data = experiment.collect_results()  # 3. Tổng hợp số liệu
+    data = experiment.collect_results()
     s = data["summary"]
 
     print("\nSummary:")
@@ -127,11 +120,9 @@ def mode_experiments() -> None:
     print(f"  Slowest N             : {s['slowest_n']} "
           f"({s['slowest_solver_time'] * 1000:.3f} ms)")
 
-    path = experiment.export_results(csv_name)  # 4. Xuất CSV
+    path = experiment.export_results(csv_name)
     print(f"\nResults exported to: {path}")
 
-
-# MENU
 MENU = """
 ----------------------------------
   N-Queens using SAT (Glucose3)
@@ -140,7 +131,6 @@ MENU = """
   2. Run Experiments
   0. Exit
 """
-
 
 def main() -> None:
     while True:
@@ -156,7 +146,6 @@ def main() -> None:
             break
         else:
             print(" Invalid choice. Please enter 1, 2, or 0.")
-
 
 if __name__ == "__main__":
     try:

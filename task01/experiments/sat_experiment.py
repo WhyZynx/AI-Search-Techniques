@@ -14,15 +14,14 @@ CSV_FIELDS = [
     "n",
     "variables",
     "clauses",
-    "generation_time",      # trung bình (giây)
-    "solver_time",          # trung bình (giây)
-    "result",               # SAT / UNSAT
-    "is_valid",             # True / False / N/A (khi UNSAT)
-    "solver_time_std",      # độ lệch chuẩn giữa các lần chạy (giây)
-    "solver_time_min",      # lần chạy nhanh nhất (giây)
-    "runs",                 # số lần lặp
+    "generation_time",
+    "solver_time",
+    "result",
+    "is_valid",
+    "solver_time_std",
+    "solver_time_min",
+    "runs",
 ]
-
 
 class SATExperiment:
     def __init__(
@@ -49,23 +48,22 @@ class SATExperiment:
 
             is_valid: Optional[bool] = None
             if is_sat:
-                positions = solver.decode_solution()       
-                is_valid = solver.validate_solution(positions)  
+                positions = solver.decode_solution()
+                is_valid = solver.validate_solution(positions)
         return solver_time, is_sat, is_valid
 
-
     def _one_run(self, n: int) -> Dict[str, Any]:
-        logic = PropositionalLogic(n)                       # bước 1
-        generator = CNFGenerator(n)                         # bước 2
+        logic = PropositionalLogic(n)
+        generator = CNFGenerator(n)
 
         t0 = time.perf_counter()
-        clauses = generator.generate_all_constraints()      # bước 3
+        clauses = generator.generate_all_constraints()
         generation_time = time.perf_counter() - t0
 
-        clause_count = generator.get_clause_count()         # bước 4
+        clause_count = generator.get_clause_count()
         variables = len(logic.get_all_variables())
 
-        solver_time, is_sat, is_valid = self.measure_solver_time(n, clauses)  # bước 5-9
+        solver_time, is_sat, is_valid = self.measure_solver_time(n, clauses)
 
         return {
             "variables": variables,
@@ -76,14 +74,12 @@ class SATExperiment:
             "is_valid": is_valid,
         }
 
-    #Test 1 giá trị n
     def run_single_test(self, n: int) -> Result:
         if self.warmup:
-            self._one_run(n)                                # bỏ kết quả
+            self._one_run(n)
 
         runs = [self._one_run(n) for _ in range(self.repeats)]
 
-        # Số biến, số clause, kết quả SAT/UNSAT phải giống nhau ở mọi lần chạy
         assert len({r["clauses"] for r in runs}) == 1
         assert len({r["is_sat"] for r in runs}) == 1
 
@@ -110,8 +106,6 @@ class SATExperiment:
         }
         return result
 
-
-    # Test nhiều giá trị n
     def run_multiple_tests(self, verbose: bool = True) -> List[Result]:
         """Lặp run_single_test cho từng N trong n_values."""
         self.results = []
@@ -127,7 +121,6 @@ class SATExperiment:
                     f"{res['result']:<5} | valid={res['is_valid']}"
                 )
         return self.results
-
 
     def collect_results(self) -> Dict[str, Any]:
 
@@ -147,7 +140,6 @@ class SATExperiment:
             "slowest_solver_time": slowest["solver_time"],
         }
         return {"rows": rows, "summary": summary}
-
 
     def export_results(self, filename: str = "sat_results.csv") -> str:
         if not self.results:

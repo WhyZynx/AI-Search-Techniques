@@ -1,6 +1,5 @@
 from .min_conflicts import MinConflictsSolver
 
-
 def run_experiments(sizes=(4, 8, 12, 20), trials=30, max_steps=10000):
     results = []
     for n in sizes:
@@ -23,7 +22,6 @@ def run_experiments(sizes=(4, 8, 12, 20), trials=30, max_steps=10000):
             })
     return results
 
-
 def print_results(results):
     print(f"{'N':>4} {'Heuristic':>16} {'Success rate':>14} {'Average steps':>15} {'Average time (ms)':>19}")
     for result in results:
@@ -34,7 +32,6 @@ def print_results(results):
             f"{result['average_steps']:>15.2f} "
             f"{result['average_time'] * 1000:>19.3f}"
         )
-
 
 if __name__ == "__main__":
     print_results(run_experiments())
