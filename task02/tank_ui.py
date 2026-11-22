@@ -11,9 +11,6 @@ from agents import (
 
 pygame.init()
 
-# ===================================
-# WINDOW
-# ===================================
 WIDTH, HEIGHT = 1040, 680
 CELL = 56
 BOARD_X, BOARD_Y = 40, 95
@@ -22,9 +19,6 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Tank Battle - AI Visualizer")
 clock = pygame.time.Clock()
 
-# ===================================
-# COLORS
-# ===================================
 BG = (15, 23, 42)
 PANEL = (30, 41, 59)
 GRID_1 = (40, 57, 78)
@@ -41,9 +35,6 @@ font = pygame.font.SysFont("segoeui", 21)
 small = pygame.font.SysFont("segoeui", 17)
 title_font = pygame.font.SysFont("segoeui", 31, bold=True)
 
-# ===================================
-# GAME STATE & AI
-# ===================================
 state = create_default_state()
 
 AGENT_CLASSES = [
@@ -74,9 +65,7 @@ last_nodes = 0
 last_player = None
 last_step_time = 0
 
-# ===================================
-# BUTTONS
-# ===================================
+
 buttons = {
     "P0 AI": pygame.Rect(595, 360, 195, 46),
     "P1 AI": pygame.Rect(805, 360, 195, 46),
@@ -99,10 +88,6 @@ def cell_rect(row, col):
         CELL - 2,
     )
 
-
-# ===================================
-# DRAW BOARD
-# ===================================
 def draw_board():
     for row in range(state.height):
         for col in range(state.width):
@@ -245,10 +230,6 @@ def draw_bullets():
             screen, YELLOW, rect.center, 7
         )
 
-
-# ===================================
-# DRAW INFORMATION
-# ===================================
 def draw_info():
     pygame.draw.rect(
         screen,
@@ -430,9 +411,6 @@ def draw_game():
     pygame.display.flip()
 
 
-# ===================================
-# GAME CONTROL
-# ===================================
 def reset_game():
     global state, auto_play, turn_count
     global last_action, last_nodes, last_player
@@ -532,9 +510,6 @@ def handle_key(key):
         handle_click(buttons["PLAY"].center)
 
 
-# ===================================
-# MAIN LOOP
-# ===================================
 running = True
 
 while running:
