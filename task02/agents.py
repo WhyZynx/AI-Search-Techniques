@@ -1,11 +1,14 @@
 import time
+from collections import deque
 
-from game import Action, create_default_state, Wall
+from game import Action, Direction, create_default_state, Wall
 
 
 class Agent:
     # Lớp cha chung cho mọi thuật toán điều khiển tank
     def __init__(self, name, depth):
+        if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1:
+            raise ValueError("depth must be a positive integer")
         self.name = name
         self.depth = depth              # số ply tối đa được tìm kiếm
         self.nodes_expanded = 0         # đếm số trạng thái đã duyệt (để so sánh)
@@ -28,9 +31,14 @@ class MinimaxAgent(Agent):
         super().__init__(name, depth)
 
     def evaluate(self, state, player):
-        # Giá trị của trạng thái chưa kết thúc khi hết độ sâu.
-        # Minimax thuần chưa có heuristic nên trả về 0.
-        return 0
+        own_tank = state.tanks[player]
+        other_tank = state.tanks[1 - player]
+        own_base = state.bases[player]
+        other_base = state.bases[1 - player]
+        return (
+            25 * (own_tank.hp - other_tank.hp)
+            + 15 * (own_base.hp - other_base.hp)
+        )
 
     def choose_action(self, state):
         self.nodes_expanded = 0
@@ -106,9 +114,10 @@ class AlphaBetaAgent(MinimaxAgent):
 
 
 # ---------- Heuristic ----------
-W_TANK_HP, W_BASE_HP = 20, 10
-W_AIM_TANK, W_AIM_BASE = 30, 20
+W_TANK_HP, W_BASE_HP = 25, 15
+W_AIM_TANK, W_AIM_BASE = 8, 9
 W_BULLET_TANK, W_BULLET_BASE = 25, 15
+W_AIM_WALL, W_BULLET_WALL = 7, 12
 W_APPROACH = 1
 
 
@@ -131,6 +140,43 @@ def first_hit(state, row, col, direction, max_steps):
     return None
 
 
+def distance_to_base(state, tank, base):
+    goals = set()
+    for direction in (Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT):
+        row = base.row + direction.drow
+        col = base.col + direction.dcol
+        if state.in_bounds(row, col):
+            goals.add((row, col))
+    start = (tank.row, tank.col)
+    queue = deque([(start, 0)])
+    visited = {start}
+    while queue:
+        (row, col), distance = queue.popleft()
+        if (row, col) in goals:
+            return distance
+        for direction in (Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT):
+            next_row = row + direction.drow
+            next_col = col + direction.dcol
+            next_cell = (next_row, next_col)
+            if next_cell in visited or not state.in_bounds(next_row, next_col):
+                continue
+            if next_cell != start and state.is_blocked(next_row, next_col):
+                continue
+            visited.add(next_cell)
+            queue.append((next_cell, distance + 1))
+    return None
+
+
+def wall_blocks_base(wall, row, col, direction, base):
+    wall_row, wall_col = wall.row - row, wall.col - col
+    base_row, base_col = base.row - wall.row, base.col - wall.col
+    wall_steps = wall_row * direction.drow + wall_col * direction.dcol
+    base_steps = base_row * direction.drow + base_col * direction.dcol
+    wall_cross = wall_row * direction.dcol - wall_col * direction.drow
+    base_cross = base_row * direction.dcol - base_col * direction.drow
+    return wall_steps > 0 and base_steps > 0 and wall_cross == 0 and base_cross == 0
+
+
 class HeuristicMixin:
     # Chỉ ghi đè evaluate(); trộn vào Minimax hoặc Alpha-Beta
     def evaluate(self, state, me):
@@ -149,6 +195,10 @@ class HeuristicMixin:
             score += W_AIM_TANK
         elif target is enemy_base:
             score += W_AIM_BASE
+        elif isinstance(target, Wall) and wall_blocks_base(
+            target, tank.row, tank.col, tank.direction, enemy_base
+        ):
+            score += W_AIM_WALL
 
         # đạn của mình đang bay sắp trúng địch
         for bl in state.bullets:
@@ -158,10 +208,16 @@ class HeuristicMixin:
                     score += W_BULLET_TANK
                 elif target is enemy_base:
                     score += W_BULLET_BASE
+                elif isinstance(target, Wall) and wall_blocks_base(
+                    target, bl.row, bl.col, bl.direction, enemy_base
+                ):
+                    score += W_BULLET_WALL
 
-        # tiến gần base địch
-        dist = abs(tank.row - enemy_base.row) + abs(tank.col - enemy_base.col)
-        score += W_APPROACH * (state.width + state.height - dist)
+        distance = distance_to_base(state, tank, enemy_base)
+        if distance is None:
+            score -= W_APPROACH * (state.width + state.height)
+        else:
+            score += W_APPROACH * (state.width + state.height - distance)
         return score
 
 

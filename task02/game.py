@@ -83,6 +83,7 @@ class GameState:
         self.walls = walls              # dict {(row, col): Wall}
         self.bullets = bullets if bullets is not None else []
         self.current_player = current_player   # ai đang đến lượt (0 hoặc 1)
+        self.last_bullet_paths = []
 
     def copy(self):
         return GameState(
@@ -169,17 +170,29 @@ class GameState:
             
     def _move_bullets(self):
         remaining = []
+        paths = []
         for bullet in self.bullets:
             hit = False
+            start = (bullet.row, bullet.col)
+            path = []
             for _ in range(3):                      # tối đa 3 ô mỗi cycle
                 bullet.row += bullet.direction.drow
                 bullet.col += bullet.direction.dcol
+                path.append((bullet.row, bullet.col))
                 if self._bullet_hit(bullet.row, bullet.col):
                     hit = True
                     break                           # trúng là dừng ngay
             if not hit:
                 remaining.append(bullet)            # chưa trúng gì thì đạn còn bay tiếp
+            paths.append({
+                "owner": bullet.owner,
+                "direction": bullet.direction,
+                "start": start,
+                "path": path,
+                "survived": not hit,
+            })
         self.bullets = remaining
+        self.last_bullet_paths = paths
 
     def _bullet_hit(self, row, col):
         # Trả về True nếu đạn bị chặn tại ô (row, col) (và xử lý sát thương)

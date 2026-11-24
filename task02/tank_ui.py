@@ -82,16 +82,18 @@ agent_names = [
     "Heuristic Minimax",
     "Heuristic Alpha-Beta",
 ]
-selected_agents = [2, 3]
+selected_agents = [3, 3]
 
 state = create_default_state()
-search_depth = 2
-step_delay = 850
+search_depth = 4
+step_delay = 700
 max_actions = 160
 auto_play = False
 turn_count = 0
 last_action = "No moves yet"
 last_step_time = 0
+bullet_animation_started = 0
+BULLET_CELL_MS = 90
 
 board_card = pygame.Rect(24, 102, 520, 566)
 panel_card = pygame.Rect(560, 102, 536, 566)
@@ -214,16 +216,44 @@ def draw_board():
 
 
 def draw_bullets():
+    now = pygame.time.get_ticks()
+    elapsed = now - bullet_animation_started
+    moving_bullets = set()
+    active_paths = []
+    for event in state.last_bullet_paths:
+        path = event["path"]
+        duration = len(path) * BULLET_CELL_MS
+        if not path or elapsed >= duration:
+            continue
+        active_paths.append((event, path, elapsed / BULLET_CELL_MS))
+        if event["survived"]:
+            end_row, end_col = path[-1]
+            moving_bullets.add((event["owner"], event["direction"], end_row, end_col))
+
     for bullet in state.bullets:
         if not state.in_bounds(bullet.row, bullet.col):
             continue
-        cx = BOARD_X + bullet.col * CELL + CELL // 2
-        cy = BOARD_Y + bullet.row * CELL + CELL // 2
-        color = P0_COLOR if bullet.owner == 0 else P1_COLOR
-        tail = (cx - bullet.direction.dcol * 8, cy - bullet.direction.drow * 8)
-        pygame.draw.line(screen, color, tail, (cx, cy), 4)
-        pygame.draw.circle(screen, GOLD, (cx, cy), 5)
-        pygame.draw.circle(screen, (255, 255, 255), (cx - 1, cy - 1), 2)
+        key = (bullet.owner, bullet.direction, bullet.row, bullet.col)
+        if key in moving_bullets:
+            continue
+        draw_bullet_at(bullet.owner, bullet.direction, bullet.row, bullet.col)
+
+    for event, path, progress in active_paths:
+        start_row, start_col = event["start"]
+        step = min(progress, len(path))
+        row = start_row + event["direction"].drow * step
+        col = start_col + event["direction"].dcol * step
+        draw_bullet_at(event["owner"], event["direction"], row, col)
+
+
+def draw_bullet_at(owner, direction, row, col):
+    cx = round(BOARD_X + col * CELL + CELL // 2)
+    cy = round(BOARD_Y + row * CELL + CELL // 2)
+    color = P0_COLOR if owner == 0 else P1_COLOR
+    tail = (round(cx - direction.dcol * 9), round(cy - direction.drow * 9))
+    pygame.draw.line(screen, color, tail, (cx, cy), 4)
+    pygame.draw.circle(screen, GOLD, (cx, cy), 5)
+    pygame.draw.circle(screen, (255, 255, 255), (cx - 1, cy - 1), 2)
 
 
 def draw_player_card(player, x, y, width):
@@ -320,7 +350,7 @@ def reset_game():
 
 
 def ai_step():
-    global state, turn_count, last_action
+    global state, turn_count, last_action, bullet_animation_started
     if game_finished():
         return
     player = state.current_player
@@ -329,6 +359,7 @@ def ai_step():
     if action not in state.get_legal_actions():
         return
     state = state.apply_action(action)
+    bullet_animation_started = pygame.time.get_ticks()
     last_action = f"Player {player} · {action.name.replace('_', ' ').title()}"
     turn_count += 1
 
