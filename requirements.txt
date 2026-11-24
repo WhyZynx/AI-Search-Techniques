@@ -1,1 +1,2 @@
 python-sat
+pygame==2.6.1

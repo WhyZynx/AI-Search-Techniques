@@ -1,7 +1,8 @@
+from pathlib import Path
 
 import pygame
 
-from game import Action, create_default_state
+from game import Action, Direction, create_default_state
 from agents import (
     MinimaxAgent,
     AlphaBetaAgent,
@@ -9,535 +10,377 @@ from agents import (
     HeuristicAlphaBetaAgent,
 )
 
+
 pygame.init()
 
-WIDTH, HEIGHT = 1040, 680
-CELL = 56
-BOARD_X, BOARD_Y = 40, 95
+WIDTH, HEIGHT = 1120, 740
+CELL = 52
+BOARD_X, BOARD_Y = 56, 153
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Tank Battle - AI Visualizer")
+pygame.display.set_caption("Tank Battle")
 clock = pygame.time.Clock()
 
-BG = (15, 23, 42)
-PANEL = (30, 41, 59)
-GRID_1 = (40, 57, 78)
-GRID_2 = (45, 64, 86)
-WHITE = (248, 250, 252)
-MUTED = (148, 163, 184)
-BLUE = (59, 130, 246)
-GREEN = (52, 211, 153)
-RED = (251, 113, 133)
-YELLOW = (250, 204, 21)
-WALL = (148, 163, 184)
+BG = (243, 246, 250)
+CARD = (255, 255, 255)
+CARD_ALT = (248, 250, 252)
+BORDER = (221, 229, 238)
+TEXT = (35, 48, 65)
+MUTED = (105, 121, 141)
+BLUE = (55, 111, 196)
+BLUE_HOVER = (77, 132, 214)
+P0_COLOR = (55, 111, 196)
+P1_COLOR = (190, 72, 126)
+GOLD = (230, 163, 47)
+WALL_COLOR = (151, 164, 181)
 
-font = pygame.font.SysFont("segoeui", 21)
-small = pygame.font.SysFont("segoeui", 17)
-title_font = pygame.font.SysFont("segoeui", 31, bold=True)
+font = pygame.font.SysFont("segoeui", 18)
+small = pygame.font.SysFont("segoeui", 15)
+tiny = pygame.font.SysFont("segoeui", 13)
+title_font = pygame.font.SysFont("segoeui", 30, bold=True)
+section_font = pygame.font.SysFont("segoeui", 17, bold=True)
 
-state = create_default_state()
+ASSET_DIR = Path(__file__).with_name("assets")
+ASSET_FILES = (
+    "grass.png", "wall.png", "goal.png", "box.png", "brown_box.png",
+    "blue_box.png", "pink_box.png", "duck_front.png", "duck_back.png",
+    "duck_left.png", "duck_right.png", "duck2_front.png", "duck2_back.png",
+    "duck2_left.png", "duck2_right.png",
+)
+sprites = {}
+scaled_sprites = {}
+for filename in ASSET_FILES:
+    try:
+        sprites[filename] = pygame.image.load(str(ASSET_DIR / filename)).convert_alpha()
+    except (pygame.error, OSError):
+        sprites[filename] = None
 
-AGENT_CLASSES = [
+tank_sprites = {
+    0: {
+        Direction.UP: "duck_back.png",
+        Direction.DOWN: "duck_front.png",
+        Direction.LEFT: "duck_left.png",
+        Direction.RIGHT: "duck_right.png",
+    },
+    1: {
+        Direction.UP: "duck2_back.png",
+        Direction.DOWN: "duck2_front.png",
+        Direction.LEFT: "duck2_left.png",
+        Direction.RIGHT: "duck2_right.png",
+    },
+}
+
+agent_classes = [
     MinimaxAgent,
     AlphaBetaAgent,
     HeuristicMinimaxAgent,
     HeuristicAlphaBetaAgent,
 ]
-
-AGENT_NAMES = [
+agent_names = [
     "Minimax",
     "Alpha-Beta",
     "Heuristic Minimax",
     "Heuristic Alpha-Beta",
 ]
-
 selected_agents = [2, 3]
 
-SEARCH_DEPTH = 2
-STEP_DELAY = 850
-MAX_ACTIONS = 160
-
+state = create_default_state()
+search_depth = 2
+step_delay = 850
+max_actions = 160
 auto_play = False
 turn_count = 0
-action_history = []
-last_action = "None"
-last_nodes = 0
-last_player = None
+last_action = "No moves yet"
 last_step_time = 0
 
-
+board_card = pygame.Rect(24, 102, 520, 566)
+panel_card = pygame.Rect(560, 102, 536, 566)
 buttons = {
-    "P0 AI": pygame.Rect(595, 360, 195, 46),
-    "P1 AI": pygame.Rect(805, 360, 195, 46),
-    "NEXT": pygame.Rect(595, 423, 195, 46),
-    "PLAY": pygame.Rect(805, 423, 195, 46),
-    "RESET": pygame.Rect(595, 486, 405, 46),
+    "P0": pygame.Rect(582, 340, 238, 42),
+    "P1": pygame.Rect(836, 340, 238, 42),
+    "NEXT": pygame.Rect(582, 442, 154, 46),
+    "PLAY": pygame.Rect(750, 442, 154, 46),
+    "RESET": pygame.Rect(918, 442, 156, 46),
 }
 
 
-def draw_text(text, x, y, color=WHITE, used_font=font):
-    img = used_font.render(str(text), True, color)
-    screen.blit(img, (x, y))
+def draw_text(text, x, y, color=TEXT, used_font=font):
+    image = used_font.render(str(text), True, color)
+    screen.blit(image, (x, y))
+
+
+def sprite(name, size):
+    image = sprites.get(name)
+    if image is None:
+        return None
+    key = (name, size)
+    if key not in scaled_sprites:
+        scaled_sprites[key] = pygame.transform.scale(image, (size, size))
+    return scaled_sprites[key]
+
+
+def draw_sprite(name, rect):
+    image = sprite(name, min(rect.width, rect.height))
+    if image is None:
+        return False
+    screen.blit(image, image.get_rect(center=rect.center))
+    return True
+
+
+def fit_text(value, used_font, max_width):
+    value = str(value)
+    if used_font.size(value)[0] <= max_width:
+        return value
+    while value and used_font.size(value + "…")[0] > max_width:
+        value = value[:-1]
+    return value + "…"
 
 
 def cell_rect(row, col):
-    return pygame.Rect(
-        BOARD_X + col * CELL,
-        BOARD_Y + row * CELL,
-        CELL - 2,
-        CELL - 2,
-    )
+    return pygame.Rect(BOARD_X + col * CELL + 1, BOARD_Y + row * CELL + 1, CELL - 2, CELL - 2)
+
+
+def draw_hp_bar(x, y, width, hp, maximum, color):
+    ratio = max(0, min(hp / maximum, 1))
+    pygame.draw.rect(screen, (231, 236, 243), (x, y, width, 7), border_radius=4)
+    if ratio:
+        pygame.draw.rect(screen, color, (x, y, max(5, int(width * ratio)), 7), border_radius=4)
+
 
 def draw_board():
+    draw_text("BATTLEFIELD", 42, 118, TEXT, section_font)
+    draw_text("9 × 9", 477, 120, MUTED, tiny)
+    for col in range(state.width):
+        label = tiny.render(str(col), True, MUTED)
+        screen.blit(label, label.get_rect(center=(BOARD_X + col * CELL + CELL // 2, BOARD_Y - 9)))
+
     for row in range(state.height):
+        label = tiny.render(str(row), True, MUTED)
+        screen.blit(label, label.get_rect(center=(BOARD_X - 15, BOARD_Y + row * CELL + CELL // 2)))
         for col in range(state.width):
-            color = (
-                GRID_1 if (row + col) % 2 == 0
-                else GRID_2
-            )
-            pygame.draw.rect(
-                screen,
-                color,
-                cell_rect(row, col),
-                border_radius=3,
-            )
+            rect = cell_rect(row, col)
+            if not draw_sprite("grass.png", rect):
+                color = (231, 238, 246) if (row + col) % 2 == 0 else (221, 231, 242)
+                pygame.draw.rect(screen, color, rect, border_radius=4)
+            pygame.draw.rect(screen, (211, 225, 204), rect, 1, border_radius=4)
 
-
-def draw_walls():
     for wall in state.walls.values():
-        rect = cell_rect(wall.row, wall.col)
+        rect = cell_rect(wall.row, wall.col).inflate(-3, -3)
+        if not draw_sprite("wall.png", rect):
+            pygame.draw.rect(screen, WALL_COLOR, rect, border_radius=7)
+        badge = pygame.Rect(rect.right - 18, rect.bottom - 18, 17, 17)
+        if not draw_sprite("box.png" if wall.hp == 3 else "brown_box.png", badge):
+            pygame.draw.rect(screen, (64, 84, 61), badge, border_radius=4)
+        label = tiny.render(str(wall.hp), True, TEXT)
+        screen.blit(label, label.get_rect(center=badge.center))
 
-        pygame.draw.rect(
-            screen,
-            WALL,
-            rect.inflate(-8, -8),
-            border_radius=5,
-        )
-
-        hp_text = small.render(
-            str(wall.hp), True, BG
-        )
-        screen.blit(
-            hp_text,
-            hp_text.get_rect(center=rect.center),
-        )
-
-
-
-def draw_bases():
     for base in state.bases:
         if not base.is_alive():
             continue
+        rect = cell_rect(base.row, base.col).inflate(-4, -4)
+        color = P0_COLOR if base.owner == 0 else P1_COLOR
+        pygame.draw.circle(screen, color, rect.center, rect.width // 2)
+        draw_sprite("goal.png", rect.inflate(-4, -4))
+        badge = pygame.Rect(rect.x - 2, rect.y - 2, 21, 15)
+        pygame.draw.rect(screen, color, badge, border_radius=5)
+        label = tiny.render(f"B{base.owner}", True, (255, 255, 255))
+        screen.blit(label, label.get_rect(center=badge.center))
 
-        rect = cell_rect(base.row, base.col)
-        color = GREEN if base.owner == 0 else RED
-
-        # Ve can cu
-        pygame.draw.rect(
-            screen,
-            color,
-            rect.inflate(-12, -12),
-            border_radius=5
-        )
-
-        # Ve chu B0 hoac B1
-        label = font.render(
-            f"B{base.owner}", True, BG
-        )
-        screen.blit(
-            label,
-            label.get_rect(center=rect.center)
-        )
-
-        
-        draw_hp_bar(
-            rect.x + 7,
-            rect.y + CELL - 9,
-            base.hp,
-            9,
-            width=CELL - 14
-        )
-
-
-def draw_hp_bar(x, y, hp, max_hp, width=42):
-   
-    ratio = max(0, min(hp / max_hp, 1))
-
-    if ratio > 0.6:
-        color = GREEN
-    elif ratio > 0.3:
-        color = YELLOW
-    else:
-        color = RED
-
-    pygame.draw.rect(
-        screen,
-        (65, 75, 90),
-        (x, y, width, 6),
-        border_radius=3
-    )
-
-    filled = int(width * ratio)
-
-    if filled > 0:
-        pygame.draw.rect(
-            screen,
-            color,
-            (x, y, filled, 6),
-            border_radius=3
-        )
-
-
-def draw_tanks():
     for tank in state.tanks:
         if not tank.is_alive():
             continue
-
         rect = cell_rect(tank.row, tank.col)
-        x, y = rect.center
-        color = GREEN if tank.owner == 0 else RED
+        color = P0_COLOR if tank.owner == 0 else P1_COLOR
+        pygame.draw.circle(screen, color, rect.center, 24, 2)
+        name = tank_sprites[tank.owner][tank.direction]
+        if not draw_sprite(name, rect.inflate(-4, -4)):
+            pygame.draw.circle(screen, color, rect.center, 18)
+        badge = pygame.Rect(rect.x + 1, rect.y + 1, 15, 15)
+        pygame.draw.circle(screen, color, badge.center, 8)
+        label = tiny.render(str(tank.owner), True, (255, 255, 255))
+        screen.blit(label, label.get_rect(center=badge.center))
 
-        pygame.draw.circle(
-            screen, color, (x, y), 19
-        )
-
-        # Ve nong sung theo huong xe
-        dx = tank.direction.dcol
-        dy = tank.direction.drow
-
-        pygame.draw.line(
-            screen,
-            WHITE,
-            (x, y),
-            (x + dx * 25, y + dy * 25),
-            6,
-        )
-
-        pygame.draw.circle(screen, BG, (x, y), 5)
-        draw_hp_bar(x - 21, y + 23, tank.hp, 6)
+    draw_bullets()
+    draw_sprite("duck_front.png", pygame.Rect(40, 622, 22, 22))
+    draw_text("P0", 66, 626, MUTED, tiny)
+    draw_sprite("duck2_front.png", pygame.Rect(115, 622, 22, 22))
+    draw_text("P1", 141, 626, MUTED, tiny)
+    draw_sprite("wall.png", pygame.Rect(193, 622, 22, 22))
+    draw_text("Wall", 219, 626, MUTED, tiny)
+    draw_sprite("goal.png", pygame.Rect(277, 622, 22, 22))
+    draw_text("Base", 303, 626, MUTED, tiny)
+    pygame.draw.circle(screen, GOLD, (382, 633), 5)
+    draw_text("Bullet", 393, 626, MUTED, tiny)
 
 
 def draw_bullets():
     for bullet in state.bullets:
-        if not state.in_bounds(
-            bullet.row, bullet.col
-        ):
+        if not state.in_bounds(bullet.row, bullet.col):
             continue
-
-        rect = cell_rect(bullet.row, bullet.col)
-
-        pygame.draw.circle(
-            screen, YELLOW, rect.center, 7
-        )
-
-def draw_info():
-    pygame.draw.rect(
-        screen,
-        PANEL,
-        pygame.Rect(570, 95, 450, 510),
-        border_radius=16,
-    )
-
-    draw_text(
-        "CONTROL PANEL",
-        595, 110, WHITE, title_font
-    )
-
-    draw_text(
-        "PLAYER 0",
-        595, 165, GREEN, font
-    )
-    draw_text(
-        f"Tank: {state.tanks[0].hp}/6",
-        595, 199, WHITE, small
-    )
-    draw_text(
-        f"Base: {state.bases[0].hp}/9",
-        595, 227, WHITE, small
-    )
-
-    draw_text(
-        "PLAYER 1",
-        805, 165, RED, font
-    )
-    draw_text(
-        f"Tank: {state.tanks[1].hp}/6",
-        805, 199, WHITE, small
-    )
-    draw_text(
-        f"Base: {state.bases[1].hp}/9",
-        805, 227, WHITE, small
-    )
-
-    draw_text(
-        f"Turn: Player {state.current_player}",
-        595, 271, WHITE, small
-    )
-
-    mode = "RUNNING" if auto_play else "PAUSED"
-    draw_text(
-        f"AI: {mode}",
-        805, 271, GREEN if auto_play else MUTED,
-        small,
-    )
-
-    draw_text(
-        f"Actions: {turn_count}",
-        595, 300, WHITE, small
-    )
-    draw_text(
-        f"Nodes: {last_nodes}",
-        805, 300, WHITE, small
-    )
-
-    draw_text(
-        f"Last: {last_action}",
-        595, 326, YELLOW, small
-    )
-
-    draw_text(
-        "Choose AI / Next Step / Play / Reset",
-        595, 555, MUTED, small
-    )
+        cx = BOARD_X + bullet.col * CELL + CELL // 2
+        cy = BOARD_Y + bullet.row * CELL + CELL // 2
+        color = P0_COLOR if bullet.owner == 0 else P1_COLOR
+        tail = (cx - bullet.direction.dcol * 8, cy - bullet.direction.drow * 8)
+        pygame.draw.line(screen, color, tail, (cx, cy), 4)
+        pygame.draw.circle(screen, GOLD, (cx, cy), 5)
+        pygame.draw.circle(screen, (255, 255, 255), (cx - 1, cy - 1), 2)
 
 
-def draw_buttons():
-    for name, rect in buttons.items():
-        color = BLUE
-
-        if rect.collidepoint(pygame.mouse.get_pos()):
-            color = (90, 155, 250)
-
-        pygame.draw.rect(
-            screen,
-            color,
-            rect,
-            border_radius=9,
-        )
-
-        if name == "P0 AI":
-            label = (
-                "P0: " +
-                AGENT_NAMES[selected_agents[0]]
-            )
-
-        elif name == "P1 AI":
-            label = (
-                "P1: " +
-                AGENT_NAMES[selected_agents[1]]
-            )
-
-        elif name == "PLAY":
-            label = "PAUSE" if auto_play else "PLAY"
-
-        else:
-            label = name
-
-        label_font = small
-
-        text = label_font.render(
-            label, True, WHITE
-        )
-
-        screen.blit(
-            text,
-            text.get_rect(center=rect.center),
-        )
+def draw_player_card(player, x, y, width):
+    color = P0_COLOR if player == 0 else P1_COLOR
+    tank, base = state.tanks[player], state.bases[player]
+    rect = pygame.Rect(x, y, width, 106)
+    pygame.draw.rect(screen, CARD_ALT, rect, border_radius=12)
+    pygame.draw.rect(screen, color if state.current_player == player else BORDER, rect, 2, border_radius=12)
+    draw_text(f"PLAYER {player}", x + 14, y + 10, color, section_font)
+    icon = "blue_box.png" if player == 0 else "pink_box.png"
+    draw_sprite(icon, pygame.Rect(x + width - 37, y + 3, 28, 28))
+    draw_text(f"Tank  {max(0, tank.hp)}/6", x + 14, y + 37, TEXT, tiny)
+    draw_hp_bar(x + 100, y + 43, width - 114, tank.hp, 6, color)
+    draw_text(f"Base  {max(0, base.hp)}/9", x + 14, y + 68, TEXT, tiny)
+    draw_hp_bar(x + 100, y + 74, width - 114, base.hp, 9, color)
 
 
-def draw_result():
-    if not state.is_terminal() and turn_count < MAX_ACTIONS:
-        return
-
-    winner = state.winner()
-
-    if winner is None:
-        message = "DRAW"
+def draw_button(rect, label, active=False, disabled=False):
+    if disabled:
+        fill, text_color = (237, 240, 245), MUTED
+    elif active:
+        fill, text_color = (41, 139, 111), (255, 255, 255)
     else:
-        message = f"PLAYER {winner} WINS!"
-
-    rect = pygame.Rect(105, 290, 375, 95)
-
-    pygame.draw.rect(
-        screen, BG, rect, border_radius=15
-    )
-
-    text = title_font.render(
-        message, True, YELLOW
-    )
-
-    screen.blit(
-        text,
-        text.get_rect(center=rect.center),
-    )
+        fill = (78, 132, 214) if rect.collidepoint(pygame.mouse.get_pos()) else BLUE
+        text_color = (255, 255, 255)
+    pygame.draw.rect(screen, fill, rect, border_radius=9)
+    pygame.draw.rect(screen, BORDER, rect, 1, border_radius=9)
+    label = fit_text(label, small, rect.width - 16)
+    image = small.render(label, True, text_color)
+    screen.blit(image, image.get_rect(center=rect.center))
 
 
-def draw_history():
-    draw_text(
-        "RECENT ACTIONS",
-        40, 614, WHITE, small
-    )
+def game_finished():
+    return state.is_terminal() or turn_count >= max_actions
 
-    recent = action_history[-2:]
 
-    for i, action in enumerate(recent):
-        draw_text(
-            action,
-            40,
-            640 + i * 20,
-            MUTED,
-            small
-        )
+def draw_panel():
+    draw_text("MATCH", 582, 118, TEXT, section_font)
+    if state.is_terminal():
+        winner = state.winner()
+        status = f"Player {winner} wins" if winner is not None else "Draw"
+        accent = P0_COLOR if winner == 0 else P1_COLOR if winner == 1 else GOLD
+    elif turn_count >= max_actions:
+        status, accent = "Draw · move limit reached", GOLD
+    else:
+        status = f"Player {state.current_player} to move"
+        accent = P0_COLOR if state.current_player == 0 else P1_COLOR
+    status_rect = pygame.Rect(582, 145, 492, 38)
+    pygame.draw.rect(screen, CARD_ALT, status_rect, border_radius=9)
+    pygame.draw.circle(screen, accent, (600, 164), 5)
+    draw_text(status, 614, 154, TEXT, small)
+    mode = small.render("AUTO" if auto_play else "PAUSED", True, P0_COLOR if auto_play else MUTED)
+    screen.blit(mode, mode.get_rect(midright=(1059, 164)))
+
+    draw_player_card(0, 582, 197, 238)
+    draw_player_card(1, 836, 197, 238)
+
+    draw_text("AGENTS", 582, 321, TEXT, section_font)
+    draw_text(f"Depth {search_depth} · click to switch", 855, 324, MUTED, tiny)
+    draw_button(buttons["P0"], f"P0  ·  {agent_names[selected_agents[0]]}")
+    draw_button(buttons["P1"], f"P1  ·  {agent_names[selected_agents[1]]}")
+
+    can_play = not game_finished()
+    draw_text("ACTIONS", 582, 417, TEXT, section_font)
+    draw_button(buttons["NEXT"], "NEXT MOVE", disabled=not can_play)
+    draw_button(buttons["PLAY"], "PAUSE" if auto_play else "AUTO PLAY", active=auto_play, disabled=not can_play)
+    draw_button(buttons["RESET"], "RESET")
+    draw_text("LAST MOVE", 582, 515, MUTED, tiny)
+    draw_text(fit_text(last_action, small, 470), 582, 537, TEXT, small)
+    draw_text("Q/E switch · N next · P play · R reset", 582, 625, MUTED, tiny)
+
 
 def draw_game():
     screen.fill(BG)
-
-    draw_text(
-        "TANK BATTLE AI",
-        40, 30, WHITE, title_font
-    )
-
+    draw_text("TANK BATTLE", 30, 26, TEXT, title_font)
+    draw_text("Choose agents, make a move, or watch the match", 32, 67, MUTED, small)
+    pygame.draw.rect(screen, (229, 235, 243), board_card.move(0, 4), border_radius=15)
+    pygame.draw.rect(screen, CARD, board_card, border_radius=15)
+    pygame.draw.rect(screen, BORDER, board_card, 1, border_radius=15)
+    pygame.draw.rect(screen, (229, 235, 243), panel_card.move(0, 4), border_radius=15)
+    pygame.draw.rect(screen, CARD, panel_card, border_radius=15)
+    pygame.draw.rect(screen, BORDER, panel_card, 1, border_radius=15)
     draw_board()
-    draw_walls()
-    draw_bases()
-    draw_tanks()
-    draw_bullets()
-
-    draw_info()
-    draw_buttons()
-    draw_history()
-    draw_result()
-
+    draw_panel()
     pygame.display.flip()
 
 
 def reset_game():
-    global state, auto_play, turn_count
-    global last_action, last_nodes, last_player
-
+    global state, auto_play, turn_count, last_action
     state = create_default_state()
     auto_play = False
     turn_count = 0
-    last_action = "None"
-    last_nodes = 0
-    last_player = None
-    action_history.clear()
+    last_action = "No moves yet"
 
 
 def ai_step():
-    global state, turn_count
-    global last_action, last_nodes, last_player
-
-    if state.is_terminal() or turn_count >= MAX_ACTIONS:
+    global state, turn_count, last_action
+    if game_finished():
         return
-
     player = state.current_player
-    agent_class = AGENT_CLASSES[
-        selected_agents[player]
-    ]
-
-    agent = agent_class(depth=SEARCH_DEPTH)
-
+    agent = agent_classes[selected_agents[player]](depth=search_depth)
     action = agent.choose_action(state)
-
-    if action is None:
+    if action not in state.get_legal_actions():
         return
-
     state = state.apply_action(action)
-
-    last_player = player
-    last_action = f"P{player}: {action.name}"
-    last_nodes = agent.nodes_expanded
+    last_action = f"Player {player} · {action.name.replace('_', ' ').title()}"
     turn_count += 1
-    action_history.append(
-        f"Turn {turn_count}: P{player} - {action.name}"
-    )
-
-    print(
-        f"Turn {turn_count}: "
-        f"P{player} | {agent.name} | "
-        f"{action.name} | Nodes: {last_nodes}"
-    )
 
 
-def handle_click(pos):
+def handle_click(position):
     global auto_play, last_step_time
-
-    if buttons["P0 AI"].collidepoint(pos):
-        selected_agents[0] = (
-            selected_agents[0] + 1
-        ) % len(AGENT_CLASSES)
+    if buttons["P0"].collidepoint(position):
+        selected_agents[0] = (selected_agents[0] + 1) % len(agent_classes)
         auto_play = False
-
-    elif buttons["P1 AI"].collidepoint(pos):
-        selected_agents[1] = (
-            selected_agents[1] + 1
-        ) % len(AGENT_CLASSES)
+    elif buttons["P1"].collidepoint(position):
+        selected_agents[1] = (selected_agents[1] + 1) % len(agent_classes)
         auto_play = False
-
-    elif buttons["NEXT"].collidepoint(pos):
+    elif buttons["NEXT"].collidepoint(position):
         auto_play = False
         ai_step()
-
-    elif buttons["PLAY"].collidepoint(pos):
-        if (
-            not state.is_terminal()
-            and turn_count < MAX_ACTIONS
-        ):
+    elif buttons["PLAY"].collidepoint(position):
+        if not game_finished():
             auto_play = not auto_play
             last_step_time = pygame.time.get_ticks()
-
-    elif buttons["RESET"].collidepoint(pos):
+    elif buttons["RESET"].collidepoint(position):
         reset_game()
 
 
 def handle_key(key):
-    global auto_play, last_step_time
-
     if key == pygame.K_r:
         reset_game()
-
     elif key == pygame.K_q:
-        handle_click(buttons["P0 AI"].center)
-
+        handle_click(buttons["P0"].center)
     elif key == pygame.K_e:
-        handle_click(buttons["P1 AI"].center)
-
+        handle_click(buttons["P1"].center)
     elif key == pygame.K_n:
         handle_click(buttons["NEXT"].center)
-
     elif key == pygame.K_p:
         handle_click(buttons["PLAY"].center)
 
 
 running = True
-
 while running:
     for event in pygame.event.get():
-
         if event.type == pygame.QUIT:
             running = False
-
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                handle_click(event.pos)
-
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            handle_click(event.pos)
         elif event.type == pygame.KEYDOWN:
             handle_key(event.key)
 
     if auto_play:
-        if (
-            state.is_terminal()
-            or turn_count >= MAX_ACTIONS
-        ):
+        if game_finished():
             auto_play = False
-
-        else:
-            now = pygame.time.get_ticks()
-
-            if now - last_step_time >= STEP_DELAY:
-                ai_step()
-                last_step_time = pygame.time.get_ticks()
+        elif pygame.time.get_ticks() - last_step_time >= step_delay:
+            ai_step()
+            last_step_time = pygame.time.get_ticks()
 
     draw_game()
     clock.tick(60)

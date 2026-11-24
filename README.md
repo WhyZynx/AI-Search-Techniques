@@ -12,21 +12,22 @@ This repository contains AI search implementations for N-Queens and a Constraint
 | --- | --- | --- |
 | N-Queens — propositional logic | CNF generation, Glucose3 solving, solution validation, and SAT experiments | `task01/logic/`, `task01/sat/`, `task01/experiments/` |
 | N-Queens — local search | Min-Conflicts with `random` and `most_conflicts` variable-selection strategies | `task01/min_conflicts.py`, `task01/min_conflicts_experiment.py` |
+| Tank Battle | Minimax, Alpha-Beta, heuristic agents, and PyGame interface | `task02/` |
 | Kakuro — CSP model | Variables, domains, sum and all-different constraints, and consistency checks | `task03/kakuro_model.py` |
 
-The Tank Battle entry point is reserved in `task02/`. The Kakuro solver and graphical interface are separate integration work.
+The Kakuro solver and graphical interface are in `task03/`.
 
 ## Requirements
 
-- Python 3.9 or newer
-- Dependencies listed in `requirements.txt` (`python-sat` provides the Glucose3 solver)
+- Python 3.9
+- Dependencies listed in `requirements.txt` (`python-sat` provides the Glucose3 solver and `pygame` runs the Tank Battle UI)
 
-Create and activate a virtual environment from the repository root, then install dependencies from `requirements.txt`.
+Create and activate the regular `.venv` from the repository root, then install dependencies from `requirements.txt`. On macOS, use the `python` command that selects Python 3.9; in the current environment `python3` selects Python 3.14, which makes pip try to build Pygame without the SDL headers.
 
 ### Windows (PowerShell)
 
 ```powershell
-py -3 -m venv .venv
+py -3.9 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -35,7 +36,7 @@ python -m pip install -r requirements.txt
 For Command Prompt, use the equivalent activation command:
 
 ```bat
-py -3 -m venv .venv
+py -3.9 -m venv .venv
 .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -44,7 +45,7 @@ python -m pip install -r requirements.txt
 ### macOS
 
 ```bash
-python3 -m venv .venv
+python -m venv --clear .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -53,7 +54,7 @@ python -m pip install -r requirements.txt
 ### Linux
 
 ```bash
-python3 -m venv .venv
+python -m venv --clear .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
