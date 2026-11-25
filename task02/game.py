@@ -168,31 +168,67 @@ class GameState:
             tank.row = new_row
             tank.col = new_col
             
+    
     def _move_bullets(self):
         remaining = []
         paths = []
+
         for bullet in self.bullets:
             hit = False
+            impact = None
+
             start = (bullet.row, bullet.col)
             path = []
-            for _ in range(3):                      # tối đa 3 ô mỗi cycle
+
+            for _ in range(3):
                 bullet.row += bullet.direction.drow
                 bullet.col += bullet.direction.dcol
-                path.append((bullet.row, bullet.col))
+
+                current = (bullet.row, bullet.col)
+                path.append(current)
+
+                if not self.in_bounds(bullet.row, bullet.col):
+                    hit_type = "boundary"
+
+                elif (bullet.row, bullet.col) in self.walls:
+                    hit_type = "wall"
+
+                elif self.tank_at(bullet.row, bullet.col) is not None:
+                    hit_type = "tank"
+
+                elif self.base_at(bullet.row, bullet.col) is not None:
+                    hit_type = "base"
+
+                else:
+                    hit_type = None
+
                 if self._bullet_hit(bullet.row, bullet.col):
                     hit = True
-                    break                           # trúng là dừng ngay
+
+                    impact = {
+                        "row": bullet.row,
+                        "col": bullet.col,
+                        "type": hit_type
+                    }
+
+                    break
+
             if not hit:
-                remaining.append(bullet)            # chưa trúng gì thì đạn còn bay tiếp
+                remaining.append(bullet)
+
             paths.append({
                 "owner": bullet.owner,
                 "direction": bullet.direction,
                 "start": start,
                 "path": path,
                 "survived": not hit,
+                "hit": hit,
+                "impact": impact
             })
+
         self.bullets = remaining
         self.last_bullet_paths = paths
+
 
     def _bullet_hit(self, row, col):
         # Trả về True nếu đạn bị chặn tại ô (row, col) (và xử lý sát thương)

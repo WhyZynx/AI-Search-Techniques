@@ -18,17 +18,23 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Kakuro AI Solver")
 clock = pygame.time.Clock()
 
-BG = (239, 245, 250)
-NAVY = (37, 50, 70)
-NAVY_ALT = (43, 58, 80)
+
+BG = (255, 255, 255)
+
+NAVY = (210, 210, 210)
+NAVY_ALT = (190, 190, 190)
+
 WHITE = (255, 255, 255)
-TEXT = (35, 49, 69)
-MUTED = (111, 130, 151)
-BORDER = (60, 80, 105)
-BLUE = (60, 125, 231)
-GREEN = (205, 246, 219)
-YELLOW = (255, 239, 177)
-RED = (255, 203, 203)
+TEXT = (25, 25, 25)
+MUTED = (90, 90, 90)
+
+BORDER = (25, 25, 25)
+BLUE = (60, 110, 180)
+
+GREEN = (210, 235, 210)
+YELLOW = (255, 245, 190)
+RED = (245, 205, 205)
+
 PANEL = (255, 255, 255)
 
 font = pygame.font.SysFont("segoeui", 24)
@@ -42,9 +48,15 @@ BOARD_Y = 145
 BOARD_MAX_SIZE = 540
 
 grid = [
-    ["#", {"down": 4}, {"down": 6}],
-    [{"right": 3}, ".", "."],
-    [{"right": 7}, ".", "."]
+    ["#", "#", {"down": 44}, {"down": 16},  {"down": 9}, "#",{"down": 15},{"down": 44},"#"],
+    ["#",{"right": 22},".", ".", ".",{"right": 3, "down": 11},".", ".",{"down": 14}],
+    ["#",{"right": 28, "down": 17},".", ".", ".", ".", ".", ".", "."],
+    [{"right": 14},".", ".", "#",{"right": 20, "down": 12},".", ".", ".", "."],
+    [{"right": 17},".", ".",{"right": 22, "down": 29},".", ".", ".", ".",{"down": 7}],
+    ["#",{"right": 28, "down": 12},".", ".", ".", ".",{"right": 12},".", "."],
+    [{"right": 14},".", ".", ".", ".",{"down": 7},{"right": 6, "down": 12},".", "."],
+    [{"right": 39},".", ".", ".", ".", ".", ".", ".","#"],
+    ["#",{"right": 16},".", ".",{"right": 8},".", ".", ".","#"]
 ]
 
 model = KakuroModel(grid)
@@ -85,12 +97,7 @@ def draw_clue(rect, clue):
     x, y = rect.x, rect.y
     s = rect.width
 
-    pygame.draw.line(
-        screen, (115, 135, 157),
-        (x, y),
-        (x + s, y + s),
-        1
-    )
+    pygame.draw.line(screen, (25, 25, 25),(x, y),(x + s, y + s),2)
 
     clue_font = pygame.font.SysFont(
         "segoeui",
@@ -100,7 +107,7 @@ def draw_clue(rect, clue):
 
     if "right" in clue:
         label = clue_font.render(
-            str(clue["right"]), True, WHITE
+            str(clue["right"]), True, TEXT
         )
         target = (
             x + int(s * 0.74),
@@ -113,7 +120,7 @@ def draw_clue(rect, clue):
 
     if "down" in clue:
         label = clue_font.render(
-            str(clue["down"]), True, WHITE
+            str(clue["down"]), True, TEXT
         )
         target = (
             x + int(s * 0.26),
@@ -195,11 +202,14 @@ def draw_board():
             pygame.draw.rect(screen, color, rect)
 
             pygame.draw.rect(
-                screen, BORDER, rect, 1
+                screen, BORDER, rect, 2
             )
 
             if isinstance(cell, dict):
                 draw_clue(rect, cell)
+
+            elif cell == "#":
+                draw_clue(rect, {})
 
             elif cell == ".":
                 values = domains.get((row, col), [])

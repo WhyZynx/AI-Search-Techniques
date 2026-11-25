@@ -93,7 +93,11 @@ turn_count = 0
 last_action = "No moves yet"
 last_step_time = 0
 bullet_animation_started = 0
-BULLET_CELL_MS = 90
+BULLET_CELL_MS = 110
+bullet_animation_events = []
+impact_effects = []
+IMPACT_DURATION = 350
+
 
 board_card = pygame.Rect(24, 102, 520, 566)
 panel_card = pygame.Rect(560, 102, 536, 566)
@@ -203,6 +207,7 @@ def draw_board():
         screen.blit(label, label.get_rect(center=badge.center))
 
     draw_bullets()
+    update_impact_effects()
     draw_sprite("duck_front.png", pygame.Rect(40, 622, 22, 22))
     draw_text("P0", 66, 626, MUTED, tiny)
     draw_sprite("duck2_front.png", pygame.Rect(115, 622, 22, 22))
@@ -220,7 +225,7 @@ def draw_bullets():
     elapsed = now - bullet_animation_started
     moving_bullets = set()
     active_paths = []
-    for event in state.last_bullet_paths:
+    for event in bullet_animation_events:
         path = event["path"]
         duration = len(path) * BULLET_CELL_MS
         if not path or elapsed >= duration:
@@ -240,21 +245,137 @@ def draw_bullets():
 
     for event, path, progress in active_paths:
         start_row, start_col = event["start"]
-        step = min(progress, len(path))
+
+        visible_steps = len(path)
+
+        if not event["survived"]:
+            visible_steps = max(0, len(path) - 1)
+
+        if visible_steps == 0:
+            continue
+
+        step = min(progress, visible_steps)
+
         row = start_row + event["direction"].drow * step
         col = start_col + event["direction"].dcol * step
-        draw_bullet_at(event["owner"], event["direction"], row, col)
+
+        draw_bullet_at(
+            event["owner"],
+            event["direction"],
+            row,
+            col
+        )
+
+
+def update_impact_effects():
+    global impact_effects
+
+    now = pygame.time.get_ticks()
+
+    impact_effects = [
+        effect for effect in impact_effects
+        if now - effect["start_time"] < IMPACT_DURATION
+    ]
+
+    for effect in impact_effects:
+
+        elapsed = now - effect["start_time"]
+
+        if elapsed < 0:
+            continue
+
+        progress = elapsed / IMPACT_DURATION
+        progress = min(progress, 1.0)
+
+        draw_impact_effect(
+            effect["row"],
+            effect["col"],
+            progress
+        )
 
 
 def draw_bullet_at(owner, direction, row, col):
     cx = round(BOARD_X + col * CELL + CELL // 2)
     cy = round(BOARD_Y + row * CELL + CELL // 2)
     color = P0_COLOR if owner == 0 else P1_COLOR
-    tail = (round(cx - direction.dcol * 9), round(cy - direction.drow * 9))
-    pygame.draw.line(screen, color, tail, (cx, cy), 4)
-    pygame.draw.circle(screen, GOLD, (cx, cy), 5)
-    pygame.draw.circle(screen, (255, 255, 255), (cx - 1, cy - 1), 2)
+    tail = (
+        round(cx - direction.dcol * 17),
+        round(cy - direction.drow * 17)
+    )
+    pygame.draw.line(
+        screen, (255, 220, 130),
+        tail, (cx, cy), 7
+    )
+    pygame.draw.line(
+        screen, color,
+        tail, (cx, cy), 3
+    )
+    pygame.draw.circle(screen, GOLD, (cx, cy), 6)
+    pygame.draw.circle(
+        screen, (255, 255, 255),
+        (cx - 2, cy - 2), 2
+    )
 
+
+def draw_impact_effect(row, col, progress):
+    """
+    Draw a fading impact effect.
+    progress: 0.0 -> 1.0
+    """
+
+    if progress >= 1:
+        return
+
+    cx = int(BOARD_X + col * CELL + CELL // 2)
+    cy = int(BOARD_Y + row * CELL + CELL // 2)
+
+    radius = int(5 + progress * 25)
+    alpha = int(255 * (1 - progress))
+    effect_surface = pygame.Surface(
+        (CELL, CELL), pygame.SRCALPHA
+    )
+    center = (CELL // 2, CELL // 2)
+
+    pygame.draw.circle(
+        effect_surface,
+        (255, 190, 60, alpha),
+        center,
+        radius,
+        3
+    )
+    pygame.draw.circle(
+        effect_surface,
+        (255, 245, 190, alpha),
+        center,
+        max(1, int(8 * (1 - progress)))
+    )
+
+    for angle in range(0, 360, 45):
+        import math
+
+        rad = math.radians(angle)
+
+        inner = radius * 0.5
+        outer = radius + 7
+
+        x1 = center[0] + int(math.cos(rad) * inner)
+        y1 = center[1] + int(math.sin(rad) * inner)
+
+        x2 = center[0] + int(math.cos(rad) * outer)
+        y2 = center[1] + int(math.sin(rad) * outer)
+
+        pygame.draw.line(
+            effect_surface,
+            (255, 150, 40, alpha),
+            (x1, y1),
+            (x2, y2),
+            2
+        )
+
+    screen.blit(
+        effect_surface,
+        (cx - CELL // 2, cy - CELL // 2)
+    )
 
 def draw_player_card(player, x, y, width):
     color = P0_COLOR if player == 0 else P1_COLOR
@@ -347,21 +468,84 @@ def reset_game():
     auto_play = False
     turn_count = 0
     last_action = "No moves yet"
+def is_bullet_animating():
+    if not bullet_animation_events:
+        return False
+
+    elapsed = pygame.time.get_ticks() - bullet_animation_started
+
+    max_duration = max(
+        (
+            len(event["path"]) * BULLET_CELL_MS
+            for event in state.last_bullet_paths
+        ),
+        default=0
+    )
+
+    return elapsed < max_duration
+
 
 
 def ai_step():
-    global state, turn_count, last_action, bullet_animation_started
+    global state
+    global turn_count, last_action
+    global bullet_animation_started
+    global bullet_animation_events
+    global impact_effects
+
+    if is_bullet_animating():
+        return
+
     if game_finished():
         return
+
     player = state.current_player
-    agent = agent_classes[selected_agents[player]](depth=search_depth)
+
+    agent = agent_classes[selected_agents[player]](
+        depth=search_depth
+    )
+
     action = agent.choose_action(state)
+
     if action not in state.get_legal_actions():
         return
+
+    previous_player = state.current_player
+
     state = state.apply_action(action)
-    bullet_animation_started = pygame.time.get_ticks()
-    last_action = f"Player {player} · {action.name.replace('_', ' ').title()}"
+
+    if previous_player == 1:
+        now = pygame.time.get_ticks()
+
+        bullet_animation_events = [
+            dict(event)
+            for event in state.last_bullet_paths
+        ]
+
+        bullet_animation_started = now
+
+        for bullet_event in bullet_animation_events:
+            impact = bullet_event.get("impact")
+
+            if impact is not None:
+                impact_effects.append({
+                    "row": impact["row"],
+                    "col": impact["col"],
+                    "start_time": (
+                        now
+                        + len(bullet_event["path"])
+                        * BULLET_CELL_MS
+                    ),
+                    "type": impact.get("type", "normal")
+                })
+
+    last_action = (
+        f"Player {player} · "
+        f"{action.name.replace('_', ' ').title()}"
+    )
+
     turn_count += 1
+
 
 
 def handle_click(position):
@@ -409,9 +593,13 @@ while running:
     if auto_play:
         if game_finished():
             auto_play = False
-        elif pygame.time.get_ticks() - last_step_time >= step_delay:
-            ai_step()
-            last_step_time = pygame.time.get_ticks()
+
+        elif not is_bullet_animating():
+            now = pygame.time.get_ticks()
+
+            if now - last_step_time >= step_delay:
+                ai_step()
+                last_step_time = now
 
     draw_game()
     clock.tick(60)
