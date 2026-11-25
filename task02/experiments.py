@@ -2,7 +2,7 @@ import random
 import time
 
 from game import create_default_state
-from agents import (MinimaxAgent, AlphaBetaAgent,
+from agents import (Agent, MinimaxAgent, AlphaBetaAgent,
                     HeuristicMinimaxAgent, HeuristicAlphaBetaAgent)
 
 CONFIGS = [MinimaxAgent, AlphaBetaAgent,
@@ -79,7 +79,55 @@ def head_to_head(depth=3):
             print(f"{a_cls(depth).name:<22} vs {b_cls(depth).name:<22} "
                   f"{a_wins}-{b_wins} (hòa {draws})")
 
+class RandomAgent(Agent):
+    def __init__(self, seed=0):
+        super().__init__("Random", 0)
+        self.rng = random.Random(seed)
+
+    def choose_action(self, state):
+        return self.rng.choice(state.get_legal_actions())
+
+
+def vs_random(depth=4, games=10):
+    print(f"Đấu với Random (depth={depth}, {games} ván mỗi bên)")
+    for cls in CONFIGS:
+        w = d = l = cycles = 0
+        for g in range(games):
+            for side in (0, 1):
+                players = [None, None]
+                players[side] = cls(depth)
+                players[1 - side] = RandomAgent(g)
+                winner, c = play_match(*players)
+                cycles += c
+                if winner == side:
+                    w += 1
+                elif winner is None:
+                    d += 1
+                else:
+                    l += 1
+        print(f"{cls(depth).name:<22} W{w} D{d} L{l}  avg cycles {cycles / (2 * games):.1f}")
+
+
+def depth_in_budget(budget=0.05, n_scenarios=10, max_depth=8):
+    # Độ sâu tối đa hoàn thành trong `budget` giây cho mỗi nước đi
+    scenarios = make_scenarios(n_scenarios)
+    print(f"Độ sâu đạt được trong {budget}s/nước:")
+    for cls in CONFIGS:
+        reached = []
+        for s in scenarios:
+            best = 0
+            for depth in range(1, max_depth + 1):
+                agent = cls(depth)
+                start = time.perf_counter()
+                agent.choose_action(s)
+                if time.perf_counter() - start > budget:
+                    break
+                best = depth
+            reached.append(best)
+        print(f"{cls(1).name:<22} {sum(reached) / len(reached):.1f}")
 
 if __name__ == "__main__":
     benchmark()
-    head_to_head()
+    depth_in_budget()
+    vs_random()
+    head_to_head(depth=4)
