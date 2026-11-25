@@ -48,7 +48,7 @@ class MinimaxAgent(Agent):
     def _minimax(self, state, depth, me):
         self.nodes_expanded += 1
         if state.is_terminal():
-            return self.terminal_value(state, me, depth)   # thay cho state.utility(me)
+            return self.terminal_value(state, me, depth) 
         if depth == 0:
             return self.evaluate(state, me)
 
